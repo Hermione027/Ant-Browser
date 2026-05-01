@@ -159,13 +159,12 @@ jobs:
           cp "$deb_file" "$context/ant-browser.deb"
           cp "$tar_file" "$context/ant-browser.tar.gz"
 
-          cat > "$context/release-info.txt" <<EOF
-repo=${GITHUB_REPOSITORY}
-ref=${GITHUB_REF_NAME}
-sha=${GITHUB_SHA}
-version=${{ steps.meta.outputs.version }}
-arch=${{ matrix.arch }}
-EOF
+          printf '%s\n' \
+            "repo=${GITHUB_REPOSITORY}" \
+            "ref=${GITHUB_REF_NAME}" \
+            "sha=${GITHUB_SHA}" \
+            "version=${{ steps.meta.outputs.version }}" \
+            "arch=${{ matrix.arch }}" > "$context/release-info.txt"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
