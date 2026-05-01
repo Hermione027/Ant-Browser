@@ -76,6 +76,8 @@ jobs:
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build Linux packages
+        env:
+          WAILS_BUILD_TAGS: webkit2_41
         run: bash publish/linux/publish-linux.sh --arch ${{ matrix.arch }} --version ${{ steps.meta.outputs.version }}
 
       - name: Validate deb package metadata

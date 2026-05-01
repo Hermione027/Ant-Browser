@@ -143,6 +143,7 @@ APP_SUMMARY="Multi-profile browser launcher with proxy-pool management"
 APP_MAINTAINER="Ant Chrome Team"
 APP_MAINTAINER_EMAIL="contact@antblack.dev"
 APP_HOMEPAGE="https://github.com/Hermione027/Ant-Browser"
+WAILS_BUILD_TAGS="${WAILS_BUILD_TAGS:-}"
 BUILD_DATE_UTC="$(date -u +%F)"
 ICON_SIZES=(16 24 32 48 64 128 256 512)
 
@@ -188,7 +189,11 @@ if [[ "$SKIP_BUILD" -ne 1 ]]; then
   rm -f "$APP_BIN"
   (
     cd "$ROOT_DIR"
-    wails build -s -platform "linux/$ARCH" -o ant-chrome
+    wails_args=()
+    if [[ -n "$WAILS_BUILD_TAGS" ]]; then
+      wails_args+=(-tags "$WAILS_BUILD_TAGS")
+    fi
+    wails build "${wails_args[@]}" -s -platform "linux/$ARCH" -o ant-chrome
   )
 else
   echo "[WARN] skipping build step"
