@@ -43,12 +43,7 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="$(python3 - <<'PY'
-import json
-from pathlib import Path
-print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
-PY
-)"
+            version="$(python3 -c 'import json; from pathlib import Path; print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])')"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -130,12 +125,7 @@ PY
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="$(python3 - <<'PY'
-import json
-from pathlib import Path
-print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
-PY
-)"
+            version="$(python3 -c 'import json; from pathlib import Path; print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])')"
           fi
           short_sha="${GITHUB_SHA::12}"
           owner="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr '[:upper:]' '[:lower:]')"
@@ -219,12 +209,7 @@ EOF
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="$(python3 - <<'PY'
-import json
-from pathlib import Path
-print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
-PY
-)"
+            version="$(python3 -c 'import json; from pathlib import Path; print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])')"
           fi
           owner="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr '[:upper:]' '[:lower:]')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
