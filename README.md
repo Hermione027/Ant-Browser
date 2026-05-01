@@ -2,9 +2,9 @@
 
 > 面向多账号隔离、代理绑定和本地环境管理的桌面浏览器工具（Windows / Linux）。
 
-[![Release](https://img.shields.io/github/v/release/black-ant/Ant-Browser?sort=semver)](https://github.com/black-ant/Ant-Browser/releases)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue)](https://github.com/black-ant/Ant-Browser/releases)
-[![Issues](https://img.shields.io/github/issues/black-ant/Ant-Browser)](https://github.com/black-ant/Ant-Browser/issues)
+[![Release](https://img.shields.io/github/v/release/Hermione027/Ant-Browser?sort=semver)](https://github.com/Hermione027/Ant-Browser/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue)](https://github.com/Hermione027/Ant-Browser/releases)
+[![Issues](https://img.shields.io/github/issues/Hermione027/Ant-Browser)](https://github.com/Hermione027/Ant-Browser/issues)
 
 ## 推荐内核项目
 
@@ -131,7 +131,7 @@ Ant Browser 适合以下场景：
 
 ### 下载与运行
 
-1. 前往 Releases 页面下载最新版本：<https://github.com/black-ant/Ant-Browser/releases>
+1. 前往 Releases 页面下载最新版本：<https://github.com/Hermione027/Ant-Browser/releases>
 2. 安装版直接运行 `AntBrowser-Setup-*.exe`
 3. 便携版解压后运行 `ant-chrome.exe`
 4. Linux 包下载后可直接安装 `ant-browser_<version>_<arch>.deb`，或解压 `tar.gz` 后运行 `ant-chrome`
@@ -162,6 +162,24 @@ bash publish/linux/publish-linux.sh --arch arm64
 ```
 
 详细说明见 [publish/linux/README.md](publish/linux/README.md)。
+
+### GitHub Actions / Docker Hub
+
+GitHub Actions 会在推送 `v*` 标签或手动运行 workflow 后，先编译 Linux 产物，再把产物打成 Docker Hub 镜像。
+
+- 镜像名：`<dockerhub-username>/ant-browser-linux`
+- 标签示例：`v1.1.0-amd64`、`v1.1.0-arm64`
+- 镜像内文件：`/artifacts/ant-browser.deb`、`/artifacts/ant-browser.tar.gz`
+- 仓库配置：`DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`
+
+提取示例：
+
+```bash
+docker pull <dockerhub-username>/ant-browser-linux:v1.1.0
+docker create --name ant-browser-artifact <dockerhub-username>/ant-browser-linux:v1.1.0
+docker cp ant-browser-artifact:/artifacts ./artifacts
+docker rm ant-browser-artifact
+```
 
 ### 准备浏览器内核
 
@@ -236,8 +254,8 @@ chrome/
 
 ## 支持与反馈
 
-- Releases：<https://github.com/black-ant/Ant-Browser/releases>
-- Issues：<https://github.com/black-ant/Ant-Browser/issues>
+- Releases：<https://github.com/Hermione027/Ant-Browser/releases>
+- Issues：<https://github.com/Hermione027/Ant-Browser/issues>
 
 ## License
 

@@ -1,7 +1,13 @@
-name: Publish Linux Packages
+name: Publish Linux Packages and Docker Hub
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -19,6 +25,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: meta
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DOCKERHUB_USERNAME:-}" ]]; then
+            echo "Missing GitHub secret: DOCKERHUB_USERNAME" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(python3 - <<'PY'
+import json
+from pathlib import Path
+print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
+PY
+)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -49,7 +78,7 @@ jobs:
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build Linux packages
-        run: bash publish/linux/publish-linux.sh --arch ${{ matrix.arch }}
+        run: bash publish/linux/publish-linux.sh --arch ${{ matrix.arch }} --version ${{ steps.meta.outputs.version }}
 
       - name: Validate deb package metadata
         run: |
@@ -66,3 +95,172 @@ jobs:
           path: |
             publish/output/*_${{ matrix.arch }}.deb
             publish/output/*-linux-${{ matrix.arch }}.tar.gz
+
+  publish-docker:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: meta
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DOCKERHUB_USERNAME:-}" ]]; then
+            echo "Missing GitHub secret: DOCKERHUB_USERNAME" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(python3 - <<'PY'
+import json
+from pathlib import Path
+print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
+PY
+)"
+          fi
+          short_sha="${GITHUB_SHA::12}"
+          owner="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "image_repo=$owner/ant-browser-linux" >> "$GITHUB_OUTPUT"
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ant-browser-linux-${{ matrix.arch }}
+          path: ./artifacts/${{ matrix.arch }}
+
+      - name: Prepare Docker context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="./docker-context/${{ matrix.arch }}"
+          artifact_dir="./artifacts/${{ matrix.arch }}"
+          mkdir -p "$context"
+          cp "publish/docker/release-artifacts.Dockerfile" "$context/Dockerfile"
+
+          deb_file="$(find "$artifact_dir" -maxdepth 1 -type f -name '*.deb' | head -n 1)"
+          tar_file="$(find "$artifact_dir" -maxdepth 1 -type f -name '*.tar.gz' | head -n 1)"
+
+          if [[ -z "${deb_file:-}" || -z "${tar_file:-}" ]]; then
+            echo "Missing Linux artifacts in $artifact_dir" >&2
+            exit 1
+          fi
+
+          cp "$deb_file" "$context/ant-browser.deb"
+          cp "$tar_file" "$context/ant-browser.tar.gz"
+
+          cat > "$context/release-info.txt" <<EOF
+repo=${GITHUB_REPOSITORY}
+ref=${GITHUB_REF_NAME}
+sha=${GITHUB_SHA}
+version=${{ steps.meta.outputs.version }}
+arch=${{ matrix.arch }}
+EOF
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Publish artifact image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker-context/${{ matrix.arch }}
+          file: ./docker-context/${{ matrix.arch }}/Dockerfile
+          push: true
+          platforms: linux/${{ matrix.arch }}
+          tags: |
+            ${{ steps.meta.outputs.image_repo }}:v${{ steps.meta.outputs.version }}-${{ matrix.arch }}
+            ${{ steps.meta.outputs.image_repo }}:sha-${{ steps.meta.outputs.short_sha }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.title=Ant Browser Linux release artifacts
+            org.opencontainers.image.description=Linux release packages built by GitHub Actions
+            org.opencontainers.image.source=https://github.com/Hermione027/Ant-Browser
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  publish-manifest:
+    needs: publish-docker
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(python3 - <<'PY'
+import json
+from pathlib import Path
+print(json.loads(Path("wails.json").read_text(encoding="utf-8"))["info"]["productVersion"])
+PY
+)"
+          fi
+          owner="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image_repo=$owner/ant-browser-linux" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create version manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_repo="${{ steps.meta.outputs.image_repo }}"
+          version="${{ steps.meta.outputs.version }}"
+          docker buildx imagetools create \
+            -t "${image_repo}:v${version}" \
+            "${image_repo}:v${version}-amd64" \
+            "${image_repo}:v${version}-arm64"
+
+      - name: Create latest manifest
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_repo="${{ steps.meta.outputs.image_repo }}"
+          version="${{ steps.meta.outputs.version }}"
+          docker buildx imagetools create \
+            -t "${image_repo}:latest" \
+            "${image_repo}:v${version}-amd64" \
+            "${image_repo}:v${version}-arm64"
+
+      - name: Inspect manifest
+        shell: bash
+        run: docker buildx imagetools inspect "${{ steps.meta.outputs.image_repo }}:v${{ steps.meta.outputs.version }}"
