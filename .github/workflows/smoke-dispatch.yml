@@ -1,0 +1,20 @@
+name: Smoke Dispatch
+
+on:
+  workflow_dispatch: {}
+  repository_dispatch:
+    types:
+      - smoke-dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Print context
+        run: |
+          echo "event=${GITHUB_EVENT_NAME}"
+          echo "ref=${GITHUB_REF}"
+          echo "sha=${GITHUB_SHA}"
